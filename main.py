@@ -4,76 +4,148 @@ from pygame.locals import *
 # constants
 WINSIZE = [640, 480]
 WINCENTER = [320, 240]
-NUMSTARS = 150
-white = 255, 255, 255
-black = 0, 0, 0
+COLOR_WHITE = 255, 255, 255
+COLOR_BLACK = 0, 0, 0
+PIPE_WIDTH = 50
+PIPE_SPEED = 3
+GRAVITY = 0.98
+BIRD_START_X = 100
+BIRD_START_Y = 50
+BIRD_SIZE = 20
+BIRD_JUMP_VELOCITY = 5
 
-class Bonus():
+class PipeLine():
 
-    speed = 1
-    pos = (WINSIZE[1], random.randint(50, WINSIZE[1] - WINSIZE[1]//3))
-    size = random.randint(5, 10)
+    rect_Top_Pipe = None
+    rect_Bottom_Pipe = None 
+    x = None
 
-    def tick(self, surface, pixel):
+    def tick(self, scene):
         
-        pygame.draw.circle(surface, black, self.pos, self.size)
-        self.pos = (self.pos[0] - self.speed, self.pos[1])
+        pygame.draw.rect(scene, COLOR_BLACK, self.rect_Top_Pipe)
+        pygame.draw.rect(scene, COLOR_BLACK, self.rect_Bottom_Pipe)
 
-        circle = pygame.draw.circle(surface, white, self.pos, self.size)
+        self.rect_Top_Pipe.move_ip(-PIPE_SPEED, 0)
+        self.rect_Bottom_Pipe.move_ip(-PIPE_SPEED, 0)
 
+        pygame.draw.rect(scene, COLOR_WHITE, self.rect_Top_Pipe)
+        pygame.draw.rect(scene, COLOR_WHITE, self.rect_Bottom_Pipe)
 
-        #check overlapping with pixel
+        self.x = self.rect_Top_Pipe.x
 
-class Pixel():
+    def __init__(self, scene):
 
-    #main object
-    Rect = None
+        self.gap_pos_y = random.randint(50, WINSIZE[1] - 120)
+        self.gap_size = random.randint(80, 120)
+        
+        topPipePos = (WINSIZE[0] - PIPE_WIDTH, 0, PIPE_WIDTH, self.gap_pos_y)
+        bottomPipePos = (WINSIZE[0] - PIPE_WIDTH, self.gap_pos_y + self.gap_size, PIPE_WIDTH, WINSIZE[1] - self.gap_pos_y + self.gap_size)
+        self.rect_Top_Pipe = pygame.draw.rect(scene, COLOR_WHITE, topPipePos)
+        self.rect_Bottom_Pipe = pygame.draw.rect(scene, COLOR_BLACK, bottomPipePos)
+        self.x = self.rect_Top_Pipe.x
+        
+
+class Bird():
+
+    rect = None
     velocity = 0
+    score = 0
+    dead = False
 
-    def tick(self, surface):
+    def tick(self, scene):
 
-        y = int(self.Rect.y - self.velocity)
+        if self.dead:
+            return
 
-        if y >= self.start_y:
-            self.velocity = 0
+        y = int(self.rect.y - self.velocity)
+
+        if y <= 0 or y >= WINSIZE[1]:
+            self.kill()
         else:
-            self.draw(surface, black)
-            self.Rect.move_ip(0, -self.velocity)
-            self.velocity = self.velocity - 0.5
-            self.draw(surface, white)
+            self.draw(scene, COLOR_BLACK)
+            self.rect.move_ip(0, -self.velocity)
+            self.velocity = self.velocity - GRAVITY
+            self.draw(scene, COLOR_WHITE)
 
-    def draw(self, surface, color):
-        pygame.draw.rect(surface, color, self.Rect)
+    def draw(self, scene, color):
 
-    def __init__(self, surface):
-        self.Rect = pygame.draw.rect(surface, white, (100, WINSIZE[1] - 50, 6, 6))
-        self.start_y = self.Rect.y
+        global font
+        pygame.draw.rect(scene, color, self.rect)
+        score_text = font.render("{}".format(self.score), True, COLOR_BLACK)
+        scene.blit(score_text, self.rect)
+
+    def jump(self):
+        self.velocity = BIRD_JUMP_VELOCITY
+
+    def overlaps(self, pipes):
+        return pipes.rect_Top_Pipe.colliderect(self.rect) or pipes.rect_Bottom_Pipe.colliderect(self.rect)
+
+    def __init__(self, scene):
+        self.rect = pygame.draw.rect(scene, COLOR_WHITE, (BIRD_START_X, BIRD_START_Y, BIRD_SIZE, BIRD_SIZE))
+
+    def kill(self):
+        self.dead = True
 
 def main():
 
+    global font
+
+    # initialize and prepare scene
     random.seed()
     clock = pygame.time.Clock()
-
-    # initialize and prepare screen
     pygame.init()
-    screen = pygame.display.set_mode(WINSIZE)
-    pygame.display.set_caption("Neural test")
+    scene = pygame.display.set_mode(WINSIZE)
 
-    pixel = Pixel(screen)
-    #bonus = Bonus(screen)
+    font = pygame.font.SysFont(pygame.font.get_default_font(), 20)
+    pygame.display.set_caption("Flappy bird + neural")
+
+    pipeLines = []
+    birds = []
+    game_started = False
 
     # main game loop
-    while 1:
+    while True:
 
-        pixel.tick(screen)
-        #bonus.tick(screen, pixel)
-
+        # Controls and stuff
         pygame.display.update()
         for e in pygame.event.get():
-            if hasattr(e, "key") and e.key in [K_UP, K_SPACE]:
-                pixel.velocity = 10
-        clock.tick(60)
+            if hasattr(e, "key"):
+                if e.key == K_UP:
+                    for bird in birds:
+                        bird.jump()
+                elif e.key == K_SPACE and not game_started:
+                    pipeLines = [PipeLine(scene)]
+                    birds = [Bird(scene)]
+                    game_started = True
+                    scene.fill(COLOR_BLACK)
+            elif e.type == MOUSEBUTTONDOWN:
+                for bird in birds:
+                    bird.jump()  
 
+        if not game_started:
+            text = font.render("Press SPACE to start the game", True, COLOR_WHITE)
+            scene.blit(text, (WINSIZE[0] // 3, WINSIZE[1] // 2))
+        else:    
+            for bird in birds:
+                bird.tick(scene)
+
+                for pipeLine in pipeLines:
+                    pipeLine.tick(scene)
+
+                    if bird.overlaps(pipeLine):
+                        bird.kill()
+
+                if bird.rect.x >= pipeLine.rect_Top_Pipe.x and len(pipeLines) == 1:
+                    pipeLines.append(PipeLine(scene))
+                    bird.score += 1
+
+        if all(bird.dead for bird in birds):
+            game_started = False
+
+        for lineToDelete in [pipe for pipe in pipeLines if pipe.x < -PIPE_WIDTH]:
+            pipeLines.remove(lineToDelete)
+
+        clock.tick(60)
 
 # if python says run, then we should run
 if __name__ == "__main__":
