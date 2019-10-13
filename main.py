@@ -6,13 +6,18 @@ WINSIZE = [640, 480]
 WINCENTER = [320, 240]
 COLOR_WHITE = 255, 255, 255
 COLOR_BLACK = 0, 0, 0
+COLOR_BACKGROUND = 107, 140, 255
 PIPE_WIDTH = 50
 PIPE_SPEED = 3
 GRAVITY = 0.98
-BIRD_START_X = 100
-BIRD_START_Y = 50
-BIRD_SIZE = 20
-BIRD_JUMP_VELOCITY = 5
+PLAYER_START_X = 100
+PLAYER_START_Y = 50
+PLAYER_SIZE = 20
+PLAYER_JUMP_VELOCITY = 5
+
+PLAYER_SPRITE = pygame.image.load('res/player.png')
+PLAYER_SPRITE = pygame.transform.scale(PLAYER_SPRITE, (PLAYER_SIZE, PLAYER_SIZE))
+PIPE_SPRITE = pygame.image.load('res/pipe.png')
 
 class PipeLine():
 
@@ -22,16 +27,23 @@ class PipeLine():
 
     def tick(self, scene):
         
-        pygame.draw.rect(scene, COLOR_BLACK, self.topPipeSprite)
-        pygame.draw.rect(scene, COLOR_BLACK, self.bottomPipeSprite)
-
+        self.clear(scene)
         self.topPipeSprite.move_ip(-PIPE_SPEED, 0)
         self.bottomPipeSprite.move_ip(-PIPE_SPEED, 0)
-
-        pygame.draw.rect(scene, COLOR_WHITE, self.topPipeSprite)
-        pygame.draw.rect(scene, COLOR_WHITE, self.bottomPipeSprite)
+        self.draw(scene)
 
         self.x = self.topPipeSprite.x
+
+    def clear(self, scene):
+            pygame.draw.rect(scene, COLOR_BACKGROUND, self.topPipeSprite)
+            pygame.draw.rect(scene, COLOR_BACKGROUND, self.bottomPipeSprite)
+            
+    def draw(self, scene):
+        topPipeSprite = pygame.transform.flip(PIPE_SPRITE, False, True)
+        topPipeSprite = pygame.transform.scale(topPipeSprite, (PIPE_WIDTH, self.topPipeSprite.h))
+        bottomPipeSprite = pygame.transform.scale(PIPE_SPRITE, (PIPE_WIDTH, self.bottomPipeSprite.h))
+        scene.blit(topPipeSprite, self.topPipeSprite.topleft)
+        scene.blit(bottomPipeSprite, self.bottomPipeSprite.topleft)
 
     def __init__(self, scene):
 
@@ -44,7 +56,7 @@ class PipeLine():
         self.bottomPipeSprite = pygame.draw.rect(scene, COLOR_BLACK, bottomPipeSpritePos)
         self.x = self.topPipeSprite.x
         
-class Bird():
+class Player():
 
     sprite = None
     velocity = 0
@@ -53,7 +65,7 @@ class Bird():
     color = None
 
     def __init__(self, scene, color=COLOR_WHITE):
-        self.sprite = pygame.draw.rect(scene, color, (BIRD_START_X, BIRD_START_Y, BIRD_SIZE, BIRD_SIZE))
+        self.sprite = pygame.draw.rect(scene, color, (PLAYER_START_X, PLAYER_START_Y, PLAYER_SIZE, PLAYER_SIZE))
         self.created = datetime.datetime.now()
 
     def tick(self, scene):
@@ -66,21 +78,19 @@ class Bird():
         if y <= 0 or y >= WINSIZE[1]:
             self.kill()
         else:
-            self.draw(scene, COLOR_BLACK)
-
+            self.clear(scene)
             self.sprite.move_ip(0, -self.velocity)
             self.velocity = self.velocity - GRAVITY
-            self.draw(scene, COLOR_WHITE)
+            self.draw(scene)
 
-    def draw(self, scene, color):
+    def draw(self, scene):
+        scene.blit(PLAYER_SPRITE, self.sprite)
 
-        global font
-        pygame.draw.rect(scene, color, self.sprite)
-        score_text = font.render("{}".format(self.score), True, COLOR_BLACK)
-        scene.blit(score_text, self.sprite)
+    def clear(self, scene):
+        pygame.draw.rect(scene, COLOR_BACKGROUND, self.sprite)
 
     def jump(self):
-        self.velocity = BIRD_JUMP_VELOCITY
+        self.velocity = PLAYER_JUMP_VELOCITY
 
     def overlaps(self, pipes):
         return pipes.topPipeSprite.colliderect(self.sprite) or pipes.bottomPipeSprite.colliderect(self.sprite)
@@ -103,7 +113,7 @@ def main():
     pygame.display.set_caption("Flappy bird + neural")
 
     pipeLines = []
-    birds = []
+    players = []
     game_started = False
 
     # main game loop
@@ -117,32 +127,37 @@ def main():
                     pygame.quit()
                     sys.exit(0)
                 elif e.key == K_UP:
-                    for bird in birds:
-                        bird.jump()
+                    for player in players:
+                        player.jump()
                 elif e.key == K_SPACE and not game_started:
                     pipeLines = [PipeLine(scene)]
-                    birds = [Bird(scene)]
+                    players = [Player(scene)]
                     game_started = True
-                    scene.fill(COLOR_BLACK)
+                    scene.fill(COLOR_BACKGROUND)
 
         if not game_started:
             text = font.render("Press SPACE to start the game", True, COLOR_WHITE)
             scene.blit(text, (WINSIZE[0] // 3, WINSIZE[1] // 2))
         else:    
-            for bird in birds:
-                bird.tick(scene)
+            for player in players:
+                
+                player.tick(scene)
 
                 for pipeLine in pipeLines:
                     pipeLine.tick(scene)
 
-                    if bird.overlaps(pipeLine):
-                        bird.kill()
+                    if player.overlaps(pipeLine):
+                        player.kill()
 
-                if bird.sprite.x >= pipeLine.x and len(pipeLines) == 1:
+                if player.sprite.x >= pipeLine.x and len(pipeLines) == 1:
                     pipeLines.append(PipeLine(scene))
-                    bird.score += 1
+                    player.score += 1
 
-        if all(bird.dead for bird in birds):
+            maxScore = max(player.score for player in players)
+            text = font.render("Score: {}".format(maxScore), True, COLOR_WHITE)
+            scene.blit(text, (50, 20))
+
+        if all(player.dead for player in players):
             game_started = False
 
         for pipeToDelete in [pipe for pipe in pipeLines if pipe.x < -PIPE_WIDTH]:
