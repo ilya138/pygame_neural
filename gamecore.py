@@ -2,6 +2,7 @@ import random
 import pygame
 import sys
 import datetime
+import copy
 from pygame.locals import *
 
 # constants
@@ -26,6 +27,9 @@ PLAYER_START_Y = 50
 PLAYER_SIZE = 40
 PLAYER_JUMP_VELOCITY = 5
 PLAYER_GRAVITY = 0.98
+PLAYER_COLOR_OFFSET = 10000
+
+FPS = 60
 
 # Sprites
 PLAYER_SPRITE = pygame.transform.scale(pygame.image.load(
@@ -40,6 +44,7 @@ class PipeLine():
     topPipeSprite = None
     bottomPipeSprite = None
     x = None
+    passed = False
 
     def tick(self, scene, pipeSpeed):
 
@@ -49,16 +54,11 @@ class PipeLine():
         if self.bottomPipeSprite.width <= 0:
             self.bottomPipeSprite.width = PIPE_WIDTH
 
-        self.clear(scene)
         self.topPipeSprite.move_ip(-pipeSpeed, 0)
         self.bottomPipeSprite.move_ip(-pipeSpeed, 0)
         self.draw(scene)
 
         self.x = self.topPipeSprite.x
-
-    def clear(self, scene):
-            pygame.draw.rect(scene, COLOR_BACKGROUND,
-                             (self.x, 0, PIPE_WIDTH, WINSIZE[1]))
 
     def draw(self, scene):
 
@@ -99,7 +99,6 @@ class PipeLine():
     def getpos(self, x, y, width, height):
         return (x, y, width, height)
 
-
 class Player():
 
     sprite = None
@@ -107,45 +106,50 @@ class Player():
     score = 0
     dead = False
     color = None
+    y = 0
 
     def __init__(self, scene, color=COLOR_WHITE):
         self.sprite = pygame.draw.rect(
             scene, color, (PLAYER_START_X, PLAYER_START_Y, PLAYER_SIZE, PLAYER_SIZE))
         self.created = datetime.datetime.now()
 
+        colorOffset = random.randint(1, 10) * PLAYER_COLOR_OFFSET
+        sprite = copy.copy(PLAYER_SPRITE)
+        image_pixel_array = pygame.PixelArray(sprite)
+        for row in image_pixel_array:
+            row[:] = [x + colorOffset for x in row]
+        del image_pixel_array
+        self.image = sprite
+
     def tick(self, scene):
 
         if self.dead:
             return
 
-        y = int(self.sprite.y - self.velocity)
+        self.y = int(self.sprite.y - self.velocity)
 
-        if y <= 0 or y >= WINSIZE[1]:
+        if self.y <= 0 or self.y >= WINSIZE[1]:
             self.kill()
         else:
-            self.clear(scene)
             self.sprite.move_ip(0, -self.velocity)
             self.velocity = self.velocity - PLAYER_GRAVITY
             self.draw(scene)
 
     def draw(self, scene):
-        scene.blit(PLAYER_SPRITE, self.sprite)
-
-    def clear(self, scene):
-        pygame.draw.rect(scene, COLOR_BACKGROUND, self.sprite)
+        scene.blit(self.image, self.sprite)
 
     def jump(self):
         self.velocity = PLAYER_JUMP_VELOCITY
 
     def overlaps(self, pipes):
-        return pipes.topPipeSprite.colliderect(self.sprite) or pipes.bottomPipeSprite.colliderect(self.sprite)
+        for pipe in pipes:
+            if pipe.topPipeSprite.colliderect(self.sprite) or pipe.bottomPipeSprite.colliderect(self.sprite):
+                return True
+        return False
 
     def kill(self):
         self.dead = True
         self.lifeTime = (datetime.datetime.now() - self.created).microseconds
-
-    def hasPassedPipe(self, pipe):
-        return self.sprite.x >= pipe.x
                         
 class Game():
 
@@ -160,11 +164,27 @@ class Game():
     
     pipeSpeed = PIPE_START_SPEED
 
+    text = font.render("Loading...", True, COLOR_WHITE, 20)
+    scene.blit(text, (20, 20))
+    pygame.display.update()
+
+    numberOfPlayers = 1
+    mode = 0
+
     def __init__(self):
         self.started = False
         self.players = []
         self.pipeLines = []
         self.maxScore = 0
+
+    def start(self):
+        self.players = []
+        for i in range(self.numberOfPlayers):
+            self.players.append(Player(self.scene))
+
+        self.pipeLines = [PipeLine(self.scene)]
+        self.started = True
+        self.scene.fill(COLOR_BACKGROUND)
 
     def controls(self):
         for e in pygame.event.get():
@@ -176,46 +196,57 @@ class Game():
                     for player in self.players:
                         player.jump()
                 elif e.key == K_SPACE and not self.started:
-                    self.pipeLines = [PipeLine(self.scene)]
-                    self.players = [Player(self.scene)]
-                    self.started = True
-                    self.scene.fill(COLOR_BACKGROUND)
+                    self.start()
+                elif self.mode == 0:
+                    if e.key == K_1:
+                        self.mode = 1
+                    elif e.key == K_2:
+                        self.mode = 2
 
     def drawScore(self):
         self.maxScore = max(player.score for player in self.players)
-
-        # Clear it
-        text = self.font.render("Score: {}".format(self.maxScore), True, COLOR_BACKGROUND)
-        self.scene.blit(text, (20, 20))
-
-        # Then draw it
-        text = self.font.render("Score: {}".format(self.maxScore), True, COLOR_WHITE)
-        self.scene.blit(text, (20, 20))
+        self.drawTextMessage("Score: {}".format(self.maxScore), 20, 20)
 
     def drawNewGameMessage(self):
-        text = self.font.render("Press SPACE to start the game", True, COLOR_WHITE)
-        self.scene.blit(text, (WINSIZE[0] // 3, WINSIZE[1] // 2))
+        self.drawTextMessage("Press SPACE to start the game", WINSIZE[0] // 3, WINSIZE[1] // 2)
+
+    def drawModeSelection(self):
+        self.scene.fill(COLOR_BLACK)
+        self.drawTextMessage("Select the game mode:", 20, 40)
+        self.drawTextMessage("1 - Just play", 20, 55)
+        self.drawTextMessage("2 - Neural network", 20, 70)
+        self.drawTextMessage("3 - Neural network (manual training)", 20, 85)
+
+    def drawTextMessage(self, message, x, y, color=COLOR_WHITE, size=20):
+        text = self.font.render(message, True, color, size)
+        self.scene.blit(text, (x, y))      
 
     def displayUpdate(self):
         pygame.display.update()
 
     def tick(self):
 
-        pygame.display.update()
+        self.displayUpdate()
+        self.scene.fill(COLOR_BACKGROUND)
 
-        for player in self.players:
-            for pipeLine in self.pipeLines:
-                pipeLine.tick(self.scene, self.pipeSpeed)
+        scored = False
+        for pipeLine in self.pipeLines:
+            pipeLine.tick(self.scene, self.pipeSpeed)
 
-                if player.overlaps(pipeLine):
-                    player.kill()
-
-                if player.hasPassedPipe(pipeLine) and len(pipeLines) == 1:
+            if not pipeLine.passed and pipeLine.x < PLAYER_START_X:
+                pipeLine.passed = True
+                if len(self.pipeLines) == 1:
                     # player has passed the pipe. Let's generate a new one
                     self.pipeLines.append(PipeLine(self.scene))
-                    player.score += 1
-        
+                scored = True
+
+        for player in self.players:
             player.tick(self.scene)
+
+            if player.overlaps(self.pipeLines):
+                player.kill()
+            if not player.dead and scored:
+                player.score += 1
 
         # Delete pipes that were passed by the player and now out of screen
         for pipeToDelete in [pipe for pipe in self.pipeLines if pipe.x < -PIPE_WIDTH]:
@@ -228,6 +259,6 @@ class Game():
             self.drawNewGameMessage()
             self.started = False
 
-        self.clock.tick(60)
+        self.clock.tick(FPS)
 
 
