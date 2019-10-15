@@ -3,7 +3,7 @@ import random
 from keras.models import Sequential
 from keras.layers.core import Activation, Dense, Flatten
 
-INITIAL_TRAINING_DATA_SIZE = 10
+INITIAL_TRAINING_DATA_SIZE = 11
 
 class NeuralNetwork():
 
