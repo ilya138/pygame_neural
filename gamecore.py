@@ -27,8 +27,12 @@ PLAYER_START_Y = 50
 PLAYER_SIZE = 40
 PLAYER_JUMP_VELOCITY = 5
 PLAYER_GRAVITY = 0.98
-PLAYER_COLOR_OFFSET = 10000
+PLAYER_COLOR_OFFSET = 1000
 
+# Game
+MODE_STANDARD = 'standard' # Standard game, 
+MODE_NEURALGA = 'neuralGA' # Neural + GA, 
+MODE_NEURALMT = 'neuralMT' # Neural based on player game style (manual training)
 FPS = 60
 
 # Sprites
@@ -101,49 +105,49 @@ class PipeLine():
 
 class Player():
 
+    pos = None
     sprite = None
+    dead = False
+
     velocity = 0
     score = 0
-    dead = False
-    color = None
-    y = 0
 
     def __init__(self, scene, color=COLOR_WHITE):
-        self.sprite = pygame.draw.rect(
+        self.pos = pygame.draw.rect(
             scene, color, (PLAYER_START_X, PLAYER_START_Y, PLAYER_SIZE, PLAYER_SIZE))
         self.created = datetime.datetime.now()
 
-        colorOffset = random.randint(1, 10) * PLAYER_COLOR_OFFSET
+        colorOffset = random.randint(1, 100) * PLAYER_COLOR_OFFSET
         sprite = copy.copy(PLAYER_SPRITE)
         image_pixel_array = pygame.PixelArray(sprite)
         for row in image_pixel_array:
             row[:] = [x + colorOffset for x in row]
         del image_pixel_array
-        self.image = sprite
+        self.sprite = sprite
 
     def tick(self, scene):
 
         if self.dead:
             return
 
-        self.y = int(self.sprite.y - self.velocity)
+        y = int(self.pos.y - self.velocity)
 
-        if self.y <= 0 or self.y >= WINSIZE[1]:
+        if y <= 0 or y >= WINSIZE[1]:
             self.kill()
         else:
-            self.sprite.move_ip(0, -self.velocity)
+            self.pos.move_ip(0, -self.velocity)
             self.velocity = self.velocity - PLAYER_GRAVITY
             self.draw(scene)
 
     def draw(self, scene):
-        scene.blit(self.image, self.sprite)
+        scene.blit(self.sprite, self.pos)
 
     def jump(self):
         self.velocity = PLAYER_JUMP_VELOCITY
 
     def overlaps(self, pipes):
         for pipe in pipes:
-            if pipe.topPipeSprite.colliderect(self.sprite) or pipe.bottomPipeSprite.colliderect(self.sprite):
+            if pipe.topPipeSprite.colliderect(self.pos) or pipe.bottomPipeSprite.colliderect(self.pos):
                 return True
         return False
 
@@ -153,29 +157,26 @@ class Player():
                         
 class Game():
 
+    pygame.display.set_caption("Flappy bird + neural")
+
      # initialize and prepare scene
-    random.seed()
     clock = pygame.time.Clock()
     pygame.init()
     scene = pygame.display.set_mode(WINSIZE)
 
     font = pygame.font.SysFont(pygame.font.get_default_font(), 20)
-    pygame.display.set_caption("Flappy bird + neural")
     
     pipeSpeed = PIPE_START_SPEED
-
-    text = font.render("Loading...", True, COLOR_WHITE, 20)
-    scene.blit(text, (20, 20))
-    pygame.display.update()
-
     numberOfPlayers = 1
-    mode = 0
+    mode = None
 
     def __init__(self):
         self.started = False
         self.players = []
         self.pipeLines = []
         self.maxScore = 0
+
+        self.drawLoadingScreen()    
 
     def start(self):
         self.players = []
@@ -197,11 +198,13 @@ class Game():
                         player.jump()
                 elif e.key == K_SPACE and not self.started:
                     self.start()
-                elif self.mode == 0:
+                elif self.mode == None:
                     if e.key == K_1:
-                        self.mode = 1
+                        self.mode = MODE_STANDARD
                     elif e.key == K_2:
-                        self.mode = 2
+                        self.mode = MODE_NEURALGA
+                    elif e.key == K_3:
+                        self.mode = MODE_NEURALMT
 
     def drawScore(self):
         self.maxScore = max(player.score for player in self.players)
@@ -212,9 +215,9 @@ class Game():
 
     def drawModeSelection(self):
         self.scene.fill(COLOR_BLACK)
-        self.drawTextMessage("Select the game mode:", 20, 40)
-        self.drawTextMessage("1 - Just play", 20, 55)
-        self.drawTextMessage("2 - Neural network", 20, 70)
+        self.drawTextMessage("Select game mode:", 20, 40)
+        self.drawTextMessage("1 - Normal game", 20, 55)
+        self.drawTextMessage("2 - Neural network ({} players)".format(self.numberOfPlayers), 20, 70)
         self.drawTextMessage("3 - Neural network (manual training)", 20, 85)
 
     def drawTextMessage(self, message, x, y, color=COLOR_WHITE, size=20):
@@ -223,6 +226,11 @@ class Game():
 
     def displayUpdate(self):
         pygame.display.update()
+
+    def drawLoadingScreen(self):
+        self.scene.fill(COLOR_BLACK)
+        self.drawTextMessage("Loading...", 20, 20)
+        self.displayUpdate()
 
     def tick(self):
 
@@ -236,7 +244,7 @@ class Game():
             if not pipeLine.passed and pipeLine.x < PLAYER_START_X:
                 pipeLine.passed = True
                 if len(self.pipeLines) == 1:
-                    # player has passed the pipe. Let's generate a new one
+                    # The player has passed the pipe. Let's generate a new one
                     self.pipeLines.append(PipeLine(self.scene))
                 scored = True
 

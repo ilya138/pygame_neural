@@ -1,9 +1,9 @@
 import numpy as np
 import random
 from keras.models import Sequential
-from keras.layers.core import Activation, Dense, Flatten
+from keras.layers.core import Activation, Dense
 
-INITIAL_TRAINING_DATA_SIZE = 50
+INITIAL_TRAINING_DATA_SIZE = 100
 
 class NeuralNetwork():
 
@@ -14,7 +14,7 @@ class NeuralNetwork():
 
         self.model = Sequential([
             Dense(1, input_dim=1, activation='relu'),
-            Dense(10, activation='elu'),
+            Dense(10, activation='sigmoid', use_bias=False),
             Dense(1)
         ])
 
@@ -24,7 +24,7 @@ class NeuralNetwork():
         # Generate random initial training data for particular class element
         # and train the network with it. 
         input_data = [[random.randint(0, 300)] for i in range(INITIAL_TRAINING_DATA_SIZE)]
-        self.initial_training_data = np.array(input_data, "float32")
+        self.initial_training_data = np.array(input_data, "int")
         output_data = [[random.random()] for i in range(INITIAL_TRAINING_DATA_SIZE)]
         self.initial_target_data = np.array(output_data, "float32")
 
