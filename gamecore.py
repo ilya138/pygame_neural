@@ -27,7 +27,7 @@ PLAYER_START_Y = 50
 PLAYER_SIZE = 40
 PLAYER_JUMP_VELOCITY = 5
 PLAYER_GRAVITY = 0.98
-PLAYER_COLOR_OFFSET = 1000
+PLAYER_COLOR_OFFSET = 100
 
 # Game
 MODE_STANDARD = 'standard' # Standard game, 
@@ -163,6 +163,7 @@ class Game():
     clock = pygame.time.Clock()
     pygame.init()
     scene = pygame.display.set_mode(WINSIZE)
+    frameCount = 0
 
     font = pygame.font.SysFont(pygame.font.get_default_font(), 20)
     
@@ -188,6 +189,7 @@ class Game():
         self.scene.fill(COLOR_BACKGROUND)
 
     def controls(self):
+        actionsDone = []
         for e in pygame.event.get():
             if e.type == KEYDOWN:
                 if e.key == K_ESCAPE:
@@ -196,8 +198,10 @@ class Game():
                 elif e.key == K_UP:
                     for player in self.players:
                         player.jump()
+                        actionsDone.append("JUMP")
                 elif e.key == K_SPACE and not self.started:
                     self.start()
+                    actionsDone.append("START")
                 elif self.mode == None:
                     if e.key == K_1:
                         self.mode = MODE_STANDARD
@@ -205,6 +209,8 @@ class Game():
                         self.mode = MODE_NEURALGA
                     elif e.key == K_3:
                         self.mode = MODE_NEURALMT
+
+        return actionsDone
 
     def drawScore(self):
         self.maxScore = max(player.score for player in self.players)
@@ -215,10 +221,10 @@ class Game():
 
     def drawModeSelection(self):
         self.scene.fill(COLOR_BLACK)
-        self.drawTextMessage("Select game mode:", 20, 40)
-        self.drawTextMessage("1 - Normal game", 20, 55)
-        self.drawTextMessage("2 - Neural network ({} players)".format(self.numberOfPlayers), 20, 70)
-        self.drawTextMessage("3 - Neural network (manual training)", 20, 85)
+        self.drawTextMessage("Select game mode:", 20, 20)
+        self.drawTextMessage("1 - Normal game", 20, 35)
+        self.drawTextMessage("2 - Neural network", 20, 50)
+        self.drawTextMessage("3 - Neural network (manual training)", 20, 65)
 
     def drawTextMessage(self, message, x, y, color=COLOR_WHITE, size=20):
         text = self.font.render(message, True, color, size)
@@ -241,7 +247,7 @@ class Game():
         for pipeLine in self.pipeLines:
             pipeLine.tick(self.scene, self.pipeSpeed)
 
-            if not pipeLine.passed and pipeLine.x < PLAYER_START_X:
+            if not pipeLine.passed and pipeLine.x + PIPE_WIDTH < PLAYER_START_X:
                 pipeLine.passed = True
                 if len(self.pipeLines) == 1:
                     # The player has passed the pipe. Let's generate a new one
@@ -268,5 +274,6 @@ class Game():
             self.started = False
 
         self.clock.tick(FPS)
+        self.frameCount += 1
 
 

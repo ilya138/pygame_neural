@@ -8,7 +8,7 @@ import numpy as np
 
 GA_NUMBER_OF_PLAYERS = 5
 MT_TRAINING_DATA_FRAMERATE = 10
-MT_PIPES_TO_LEARN = 10
+MT_PIPES_TO_LEARN = 5
 JUMP_DECISION_RATE = 0.6
 
 def GeneticAlgorithm_Initialize(game):
@@ -19,7 +19,7 @@ def GeneticAlgorithm_Initialize(game):
 
     # initialize neural network for each player
     for player in game.players:
-        setattr(player, 'neural', neural.NeuralNetwork())
+        setattr(player, 'neural', neural.NeuralNetwork(fillInitialData=True))
 
 def GeneticAlgorithm_tick(game):
     neuralJump(game)
@@ -37,17 +37,31 @@ def ManualTraining_Initialize(game):
         setattr(player, 'neural', neural.NeuralNetwork())
         setattr(player, 'learning', True)
 
-def ManualTraining_tick(game):
+def ManualTraining_tick(game, actionsDone):
     neuralJump(game)
+
+    pipePos = getNextPipePositions(game)
+    for player in game.players:
+        if player.learning:
+
+            input = getNeuralInput(player, pipePos)
+            if  "JUMP" in actionsDone:  
+                player.neural.addTrainingDataElement(input, [1])
+            elif game.frameCount % MT_TRAINING_DATA_FRAMERATE == 0:
+                player.neural.addTrainingDataElement(input, [0])
+
+            if player.score == MT_PIPES_TO_LEARN:
+                player.learning = False
+                player.neural.train()
     
 def getNeuralInput(player, params):
 
     # The distance between player's y-axis coordinate and the middle of pipe's gap.
-    input_gap = abs(params.gap - player.pos.y) 
+    input_gap = params["gap"] - player.pos.y
     # The distance between player's x-axis coordinate and the pipe center.
-    input_pos = abs(params.pos - player.sprite.x)
+    input_pos = abs(params["pos"] - player.pos.x)
 
-    neural_input = np.array([[input_gap]])
+    neural_input = [input_gap, input_pos]
     return neural_input
 
 def getNextPipePositions(game):
@@ -55,17 +69,18 @@ def getNextPipePositions(game):
     for pipe in game.pipeLines:
         if not pipe.passed:
             gap = pipe.gap_pos_y + pipe.gap_size // 2 # The y-axis coordinate of the middle of pipe's gap.
-            pos = pipe.x + core.PIPE_WIDTH // 2 # The x-axis coordinate the pipe center.
+            pos = pipe.x + core.PIPE_WIDTH // 2 # The x-axis coordinate of the pipe center.
     return {"gap":gap, "pos":pos}
 
 def neuralJump(game):
     pipePos = getNextPipePositions(game)
 
     for player in game.players:
-        if player.dead:
+
+        if player.dead or not hasattr(player, "neural"):
             continue
 
-        if hasattr(player, "learning") and player.leraning:
+        if hasattr(player, "learning") and player.learning:
             continue
 
         neural_input = getNeuralInput(player, pipePos)
@@ -84,6 +99,9 @@ def main():
         game.controls()
         game.clock.tick(10)
 
+    if game.mode == core.MODE_NEURALGA:
+        game.numberOfPlayers = GA_NUMBER_OF_PLAYERS
+
     game.start()
 
     if game.mode == core.MODE_NEURALGA:
@@ -99,19 +117,28 @@ def main():
         game.displayUpdate()
         
         # Handle key presses
-        game.controls()
+        actionsDone = game.controls()
+
+        if "START" in actionsDone:
+            if game.mode == core.MODE_NEURALGA:
+                GeneticAlgorithm_Initialize(game)
+            elif game.mode == core.MODE_NEURALMT:
+                ManualTraining_Initialize(game)
+            elif game.mode == core.MODE_STANDARD:
+                pass
 
         if game.started:  
 
             if game.mode == core.MODE_NEURALGA:
                 GeneticAlgorithm_tick(game)
             elif game.mode == core.MODE_NEURALMT:
-                ManualTraining_tick(game)
+                ManualTraining_tick(game, actionsDone)
             elif game.mode == core.MODE_STANDARD:
                 pass
 
             game.tick()
             game.drawScore()
+            
 
 if __name__ == "__main__":
     main()
