@@ -16,7 +16,7 @@ COLOR_BACKGROUND = 107, 140, 255
 
 # Pipes
 PIPE_WIDTH = 100
-PIPE_START_SPEED = 3
+PIPE_START_SPEED = 5
 PIPE_GAP_MIN = 100
 PIPE_GAP_MAX = 150
 PIPE_HEADER_HEIGHT = 42
@@ -152,8 +152,12 @@ class Player():
         return False
 
     def kill(self):
+        if self.dead:
+            return
         self.dead = True
-        self.lifeTime = (datetime.datetime.now() - self.created).microseconds
+        delta = (datetime.datetime.now() - self.created)
+        self.lifeTime = float("{}.{}".format(delta.seconds, delta.microseconds))
+
                         
 class Game():
 
@@ -186,7 +190,6 @@ class Game():
 
         self.pipeLines = [PipeLine(self.scene)]
         self.started = True
-        self.scene.fill(COLOR_BACKGROUND)
 
     def controls(self):
         actionsDone = []
@@ -231,12 +234,13 @@ class Game():
         self.scene.blit(text, (x, y))      
 
     def displayUpdate(self):
-        pygame.display.update()
+        pygame.display.flip()
 
-    def drawLoadingScreen(self):
+    def drawLoadingScreen(self, message="..."):
         self.scene.fill(COLOR_BLACK)
-        self.drawTextMessage("Loading...", 20, 20)
+        self.drawTextMessage("Loading: {}".format(message), 20, 20)
         self.displayUpdate()
+        pygame.event.get()
 
     def tick(self):
 
@@ -256,6 +260,9 @@ class Game():
 
         for player in self.players:
             player.tick(self.scene)
+
+            if player.dead:
+                continue
 
             if player.overlaps(self.pipeLines):
                 player.kill()
