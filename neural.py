@@ -23,7 +23,7 @@ class NeuralNetwork():
             random.seed()
             # Generate random initial training data for particular class element
             # and train the network with it. 
-            input_data = [[random.randint(0, 400)-200, random.randint(0, 600)] for i in range(INITIAL_TRAINING_DATA_SIZE)]
+            input_data = [self.getRandomInput() for i in range(INITIAL_TRAINING_DATA_SIZE)]
             self.training_data = np.array(input_data, "int")
             output_data = [[random.random()] for i in range(INITIAL_TRAINING_DATA_SIZE)]
             self.target_data = np.array(output_data, "float32")
@@ -41,3 +41,6 @@ class NeuralNetwork():
     def addTrainingDataElement(self, inputData, outputData):
         self.training_data.append(inputData)
         self.target_data.append(outputData)
+
+def getRandomInput():
+    return [random.randint(0, 400)-200, random.randint(0, 600)]

@@ -83,7 +83,12 @@ def crossover(parent1, parent2):
 
             if random.random() < 0.05:
                 # mutate gen
-                pass
+                if random.random() > 0.5:
+                    # mutate output
+                    childOutput = [random.random()]
+                else:
+                    # mutate input
+                    childInput = neural.getRandomInput()
 
             child["input"].append(childInput)
             child["output"].append(childOutput)
